@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum_macros::{Display, EnumMessage};
 use validator::Validate;
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, Validate)]
 pub struct Config {
-    pub offset: Offset,
+    pub offset_x: u16,
+    pub offset_y: u16,
+    pub gap: u32,
     pub image_view: ItemType,
     #[validate(range(min = 5, max = 50))]
     pub image_width: u16,
@@ -17,7 +19,9 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            offset: Offset { x: 0, y: 0 },
+            offset_x: 2,
+            offset_y: 0,
+            gap: 5,
             image_view: ItemType::Track,
             image_width: 30,
             list_view: ItemType::Artist,
@@ -47,23 +51,17 @@ impl Config {
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
-pub struct Offset {
-    pub x: u16,
-    pub y: u16,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub enum ItemType {
     Artist,
     Track,
 }
 
-#[derive(Display, Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(Display, Debug, Clone, Copy, Deserialize, Serialize, EnumMessage)]
 pub enum TimeRange {
-    #[strum(to_string = "short_term")]
+    #[strum(to_string = "short_term", message = "4 weeks")]
     Short,
-    #[strum(to_string = "medium_term")]
+    #[strum(to_string = "medium_term", message = "6 months")]
     Medium,
-    #[strum(to_string = "long_term")]
+    #[strum(to_string = "long_term", message = "12 months")]
     Long,
 }

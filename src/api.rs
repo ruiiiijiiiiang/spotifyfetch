@@ -19,8 +19,11 @@ pub async fn fetch_user_top_artists(
     time_range: &str,
     limit: u32,
 ) -> Result<Vec<Artist>, Box<dyn Error>> {
-    let client = reqwest::Client::new();
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
 
+    let client = reqwest::Client::new();
     let url = format!(
         "https://api.spotify.com/v1/me/top/artists?time_range={}&limit={}",
         time_range, limit
@@ -31,7 +34,6 @@ pub async fn fetch_user_top_artists(
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await?;
-
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await?;
@@ -78,8 +80,11 @@ pub async fn fetch_user_top_tracks(
     time_range: &str,
     limit: u32,
 ) -> Result<Vec<Track>, Box<dyn Error>> {
-    let client = reqwest::Client::new();
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
 
+    let client = reqwest::Client::new();
     let url = format!(
         "https://api.spotify.com/v1/me/top/tracks?time_range={}&limit={}",
         time_range, limit
@@ -90,7 +95,6 @@ pub async fn fetch_user_top_tracks(
         .header("Authorization", format!("Bearer {}", access_token))
         .send()
         .await?;
-
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await?;

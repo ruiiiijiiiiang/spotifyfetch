@@ -4,16 +4,20 @@ use std::{
     io::{self, Write},
     path::Path,
 };
+use strum::EnumMessage;
 
 pub mod api;
 pub mod auth;
 pub mod config;
 pub mod image;
 
-use crate::api::{fetch_user_top_artists, fetch_user_top_tracks, format_track_artist};
 use crate::auth::AuthToken;
 use crate::config::{Config, ItemType};
 use crate::image::{download_image, get_best_image_url, get_image_terminal_height};
+use crate::{
+    api::{fetch_user_top_artists, fetch_user_top_tracks, format_track_artist},
+    config::TimeRange,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -40,6 +44,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )
     .await?;
 
+    if tracks.is_empty() || artists.is_empty() {
+        println!(
+            "You have no Spotify listening data from the most recent {}",
+            config.time_range.get_message().unwrap()
+        );
+    }
+
     let (image_path, image_caption) = match config.image_view {
         ItemType::Track => {
             if let Some(track) = tracks.first()
@@ -47,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 && let Ok(image_path) = download_image(&image_url).await
             {
                 let image_caption = format!(
-                    "Favorite track: {} - {} ({})",
+                    "🎶 Favorite track: {} - {} ({})",
                     track.name,
                     format_track_artist(track),
                     track.album.name
@@ -62,7 +73,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 && let Some(image_url) = get_best_image_url(&artist.images)
                 && let Ok(image_path) = download_image(&image_url).await
             {
-                let image_caption = format!("Favorite artist: {}", artist.name);
+                let image_caption = format!("🎤 Favorite artist: {}", artist.name);
                 (Some(image_path), Some(image_caption))
             } else {
                 (None, None)
@@ -72,14 +83,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let text_lines = match config.list_view {
         ItemType::Artist => {
-            let mut text_lines = vec![format!("🎤 Top 10 Artists:")];
+            let mut text_lines = vec![format!("🎤 Top {} Artists:", config.list_count)];
             for (i, artist) in artists.iter().enumerate() {
                 text_lines.push(format!("  {}. {}", i + 1, artist.name));
             }
             text_lines
         }
         ItemType::Track => {
-            let mut text_lines = vec![format!("🎵 Top 10 Track:")];
+            let mut text_lines = vec![format!("🎶 Top {} Tracks:", config.list_count)];
             for (i, track) in tracks.iter().enumerate() {
                 text_lines.push(format!(
                     "  {}. {} - {} ({})",
@@ -94,9 +105,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     if image_path.is_some() && image_caption.is_some() {
-        render_layout(
-            config.offset.x,
-            config.offset.y,
+        render_output(
+            config.offset_x,
+            config.offset_y,
+            config.gap,
+            config.time_range,
             &image_path.unwrap(),
             image_caption.unwrap(),
             text_lines,
@@ -107,54 +120,54 @@ async fn main() -> Result<(), Box<dyn Error>> {
     std::process::exit(0);
 }
 
-pub fn render_layout(
+pub fn render_output(
     offset_x: u16,
     offset_y: u16,
+    gap: u32,
+    time_range: TimeRange,
     image_path: &Path,
     image_caption: String,
     text_lines: Vec<String>,
     image_width: u32,
 ) -> Result<(), Box<dyn Error>> {
+    println!(
+        "Your Spotify stats from the most recent {}:",
+        time_range.get_message().unwrap()
+    );
+
     let image_term_height = get_image_terminal_height(image_path, image_width)?;
     let text_height = text_lines.len() as u32;
     let total_height = image_term_height.max(text_height);
 
-    // Reserve vertical space by printing enough newlines
-    for _ in 0..total_height + 1 {
+    for _ in 0..total_height {
         println!();
     }
-    // Move cursor back up to where we want to start drawing
     print!("\x1b[{}A", total_height);
     io::stdout().flush()?;
 
     let conf = viuer::Config {
         width: Some(image_width),
         absolute_offset: false,
-        restore_cursor: false,
+        restore_cursor: true,
         x: offset_x,
         y: offset_y as i16,
         ..Default::default()
     };
-
-    // Print the image
     viuer::print_from_file(image_path, &conf)?;
-    println!("{}", image_caption);
 
-    // Move cursor back to top of image
-    print!("\x1b[{}A", image_term_height + 1);
+    let text_column = image_width + (offset_x as u32) + gap;
+
+    print!("\x1b[{}C{}", text_column, image_caption); // Move right and print
+    print!("\x1b[2E"); // Move to beginning of next line
     io::stdout().flush()?;
 
-    // Move cursor right to position after image
-    let text_column = image_width + 3;
-
     for line in text_lines.iter() {
-        print!("\x1b[{}C{}", text_column, line); // Move right and print
-        print!("\x1b[1E"); // Move to beginning of next line
+        print!("\x1b[{}C{}", text_column, line);
+        print!("\x1b[1E");
         io::stdout().flush()?;
     }
 
-    // Move cursor below the image
-    let lines_printed = text_lines.len() as u32;
+    let lines_printed = text_lines.len() as u32 + 3;
     if image_term_height > lines_printed {
         print!("\x1b[{}B", image_term_height - lines_printed);
     }
