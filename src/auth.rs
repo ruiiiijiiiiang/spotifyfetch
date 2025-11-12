@@ -58,15 +58,15 @@ impl AuthToken {
 
     fn save(&self) -> Result<(), Box<dyn Error>> {
         let path = Self::get_token_path();
-        let json = serde_json::to_string_pretty(self)?;
-        fs::write(path, json)?;
+        let toml = toml::to_string_pretty(self)?;
+        fs::write(path, toml)?;
         Ok(())
     }
 
-    fn load() -> Result<Self, Box<dyn std::error::Error>> {
+    fn load() -> Result<Self, Box<dyn Error>> {
         let path = Self::get_token_path();
-        let json = fs::read_to_string(path)?;
-        let token_data = serde_json::from_str(&json)?;
+        let toml_str = fs::read_to_string(path)?;
+        let token_data = toml::from_str(&toml_str)?;
         Ok(token_data)
     }
 
@@ -74,7 +74,7 @@ impl AuthToken {
         let mut path = dirs::config_dir().expect("Could not find config directory");
         path.push("spotifyfetch");
         fs::create_dir_all(&path).ok();
-        path.push("tokens.json");
+        path.push("tokens.toml");
         path
     }
 

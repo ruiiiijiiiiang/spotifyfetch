@@ -6,9 +6,9 @@ use validator::Validate;
 pub struct Config {
     pub offset_x: u16,
     pub offset_y: u16,
-    pub gap: u32,
+    pub gap: u16,
     pub image_view: ItemType,
-    #[validate(range(min = 5, max = 50))]
+    #[validate(range(min = 25, max = 40))]
     pub image_width: u16,
     pub list_view: ItemType,
     #[validate(range(min = 1, max = 20))]
@@ -46,6 +46,15 @@ impl Config {
                 eprintln!("Invalid config: {}", err);
                 Config::default()
             }
+        }
+    }
+
+    pub fn get_item_count(&self) -> (u16, u16) {
+        match (self.image_view, self.list_view) {
+            (ItemType::Track, ItemType::Artist) => (1, self.list_count),
+            (ItemType::Track, ItemType::Track) => (self.list_count, 0),
+            (ItemType::Artist, ItemType::Track) => (self.list_count, 1),
+            (ItemType::Artist, ItemType::Artist) => (0, self.list_count),
         }
     }
 }
