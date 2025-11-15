@@ -1,8 +1,7 @@
-use colored::Colorize;
+// use colored::Colorize;
 use std::{
     error::Error,
     io::{self, Write},
-    path::Path,
 };
 use strum::EnumMessage;
 
@@ -14,7 +13,7 @@ pub mod image;
 use crate::api::Api;
 use crate::auth::AuthToken;
 use crate::config::{Config, ItemType};
-use crate::image::{download_image, get_best_image_url, get_image_terminal_height};
+use crate::image::Image;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -34,30 +33,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
         std::process::exit(0);
     }
 
-    let (image_path, image_caption) = match config.image_view {
+    let (image, image_caption) = match config.image_view {
         ItemType::Track => {
             if let Some(track) = tracks.first()
-                && let Some(image_url) = get_best_image_url(&track.album.images)
-                && let Ok(image_path) = download_image(&image_url).await
+                && let Ok(image) = Image::new(&track.album.images).await
             {
-                let image_caption = format!(
-                    "🎶 Favorite track: {} - {} ({})",
-                    track.name,
-                    track.format_track_artists(),
-                    track.album.name
-                );
-                (Some(image_path), Some(image_caption))
+                let image_caption = format!("🎶 Favorite track: {}", track.format_track_display(),);
+                (Some(image), Some(image_caption))
             } else {
                 (None, None)
             }
         }
         ItemType::Artist => {
             if let Some(artist) = artists.first()
-                && let Some(image_url) = get_best_image_url(&artist.images)
-                && let Ok(image_path) = download_image(&image_url).await
+                && let Ok(image) = Image::new(&artist.images).await
             {
                 let image_caption = format!("🎤 Favorite artist: {}", artist.name);
-                (Some(image_path), Some(image_caption))
+                (Some(image), Some(image_caption))
             } else {
                 (None, None)
             }
@@ -75,25 +67,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ItemType::Track => {
             let mut text_lines = vec![format!("🎶 Top {} Tracks:", config.list_count)];
             for (i, track) in tracks.iter().enumerate() {
-                text_lines.push(format!(
-                    "  {}. {} - {} ({})",
-                    i + 1,
-                    track.name.green(),
-                    track.format_track_artists(),
-                    track.album.name
-                ));
+                text_lines.push(format!("  {}. {}", i + 1, track.format_track_display(),));
             }
             text_lines
         }
     };
 
-    if image_path.is_some() && image_caption.is_some() {
-        render_output(
-            &config,
-            &image_path.unwrap(),
-            image_caption.unwrap(),
-            text_lines,
-        )?;
+    if let Some(image) = image
+        && let Some(image_caption) = image_caption
+    {
+        render_output(&config, &image, image_caption, text_lines)?;
     }
 
     std::process::exit(0);
@@ -101,7 +84,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 fn render_output(
     config: &Config,
-    image_path: &Path,
+    image: &Image,
     image_caption: String,
     text_lines: Vec<String>,
 ) -> Result<(), Box<dyn Error>> {
@@ -110,9 +93,9 @@ fn render_output(
         config.time_range.get_message().unwrap()
     );
 
-    let image_term_height = get_image_terminal_height(image_path, config.image_width.into())?;
+    let image_term_height = image.get_terminal_height(config.image_width.into())?;
     let text_height = text_lines.len() as u32;
-    let total_height = image_term_height.max(text_height) + 1;
+    let total_height = (image_term_height + 1).max(text_height);
 
     // Reserve vertical space by printing enough newlines
     for _ in 0..total_height {
@@ -123,7 +106,7 @@ fn render_output(
     io::stdout().flush()?;
 
     let conf = viuer::Config {
-        width: Some(config.image_width.into()),
+        // width: Some(config.image_width.into()),
         height: Some(image_term_height),
         absolute_offset: false,
         restore_cursor: false,
@@ -133,7 +116,7 @@ fn render_output(
     };
 
     // Print the image
-    viuer::print_from_file(image_path, &conf)?;
+    viuer::print_from_file(&image.path, &conf)?;
     println!("{}", image_caption);
 
     // Move cursor back to top of image

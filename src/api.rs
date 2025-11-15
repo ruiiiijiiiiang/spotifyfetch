@@ -105,12 +105,17 @@ pub struct Track {
 }
 
 impl Track {
-    pub fn format_track_artists(&self) -> String {
-        self.artists
-            .iter()
-            .map(|a| a.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ")
+    pub fn format_track_display(&self) -> String {
+        format!(
+            "{} - {} ({})",
+            self.name,
+            self.artists
+                .iter()
+                .map(|a| a.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.album.name
+        )
     }
 }
 
